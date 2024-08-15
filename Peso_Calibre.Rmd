@@ -1,0 +1,327 @@
+---
+title: "Relación entre el Peso y Calibre en el Arándano"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+![Mi Logo](images/logo.png)
+
+## Presentación
+
+El arándano (Vaccinium corymbosum) es una fruta popular conocida por sus beneficios nutricionales y su sabor. El peso y el calibre del arándano son dos características importantes que afectan tanto la calidad del fruto como su comercialización.
+
+Este documento explora la relación entre el peso y el calibre en el arándano,
+proporcionando una visión general de cómo estos factores están interrelacionados.
+
+## Definiciones
+
+- **Peso**: La masa del arándano medida en gramos.
+- **Calibre**: El diámetro del arándano medido en milímetros.
+
+## Metodología
+
+Para investigar la relación entre el peso y el calibre, se llevó a cabo un estudio con una muestra de arándanos recolectados en diferentes épocas del año. Los pasos fueron los siguientes:
+
+1. **Recolección de Muestras**: Se seleccionaron arándanos de diversas variedades y tamaños.
+2. **Medición del Calibre**: Se utilizó un calibrador de precisión para medir el diámetro de cada arándano.
+3. **Pesaje**: Cada arándano fue pesado con una balanza de precisión.
+4. **Análisis de Datos**: Se realizó un análisis estadístico para determinar la relación entre el peso y el calibre.
+
+## Análisis de Datos
+
+A continuación se detalla las librerías usadas para el proyecto:
+
+```{r librerias, echo= TRUE, message=FALSE}
+
+library(readxl)         #Lectura de archivos excel
+library(data.table)
+library(dplyr)
+library(ggplot2)
+library(funModeling)
+library(reshape2)
+library(purrr)
+library(caret)
+
+```
+
+## Lectura de la data
+
+Vamos a observar las 5 primeras filas: 
+
+```{r pressure, echo=TRUE, attr.warning= FALSE, attr.message= FALSE}
+
+data <- read_xlsx("data_peso_calibre.xlsx", sheet = "DATA")
+slice_head(.data = data,n = 5)
+
+```
+## Tipo de datos.
+
+```{r tipos_datos_1, echo=TRUE, attr.warning= FALSE, attr.message= FALSE}
+
+funModeling::df_status(data)
+
+```
+Observamps 6 varibales las cuales pasamos a dar un referencia de cada una de ellas:
+
+
+- ID: Numero de baya evaluada.
+- Date: Fecha que se registra la evaluación.
+- Fundo: División de siembra del cultivo del arandano puede ser incluso por Parcela.
+- variety: Variedad del cultivo Arándano.
+- weigth:  Peso de baya evaluado.
+- caliber: Calibre de baya evaluado.
+
+```{r tipos_datos_2, echo=FALSE}
+
+data <- as.data.table(data)
+data[, Date := as.Date(Date)]
+data[, semana := as.factor(semana)]
+pareto <- freq(data = data, 
+               input = c("variety"), 
+               plot = FALSE, 
+               na.rm = T)
+pareto <- as.data.table(pareto)
+pareto[, y_cumulative := cumulative_perc * max(frequency) / 100]
+
+```
+
+```{r grafica de pareto, echo= TRUE, warning=FALSE}
+# Calcular frecuencias y porcentaje acumulado
+
+ggplot(pareto, aes(x = reorder(variety, -frequency), y = frequency))+ 
+  geom_bar(stat = "identity", fill = "#D0D0D0")+
+  geom_line(aes(y = y_cumulative, group = 1), 
+            color = "#003366", 
+            size = 1) + 
+  geom_point(aes(y = y_cumulative, group = 1), 
+             color = "#003366", 
+             size = 2) + 
+  scale_y_continuous(
+    name = "Frecuencia",
+    sec.axis = sec_axis(~ . * 100 / max(pareto$frequency), 
+                        name = "Porcentaje Acumulado (%)")
+  ) +
+  labs(
+    title = "Gráfico de Pareto",
+    x = "Variedades",
+    y = "Frecuencia",
+    caption = "La línea azul representa el porcentaje acumulado"
+  )+
+  theme_light()
+
+```
+
+```{r boxplot peso,  echo= TRUE}
+ggplot(data = data, mapping = aes(x = variety, y = weight, fill = variety))+
+  geom_boxplot(color = "#333333", 
+               outlier.color = "#ff7f0e", 
+               outlier.shape = 16, 
+               show.legend = FALSE)+
+  scale_fill_brewer(palette = "Set3")+
+  labs(
+    title = "Distribución de Peso por Variedad",
+    x = "Variedad",
+    y = "Peso",
+    caption = "Gráfico de caja mostrando la distribución del peso entre diferentes variedades."
+  ) +
+  theme_light() +
+  theme(
+    axis.title.y = element_text(size = 12, face = "bold"),
+    axis.title.x = element_text(size = 12, face = "bold"),
+    plot.title = element_text(size = 14, face = "bold", hjust = 0.5),
+    plot.caption = element_text(size = 10, face = "italic", hjust = 0),
+    axis.text.x = element_text(angle = 45, hjust = 1) 
+  )
+
+```
+
+```{r histograma, echo=TRUE}
+
+ggplot(data, aes(x = weight, fill = variety)) +
+  geom_histogram(binwidth = 1, 
+                 color = "#333333", 
+                 position = "dodge", 
+                 show.legend = FALSE) +
+  theme_light() +
+  facet_wrap(~ variety, 
+             scales = "free_y") +
+  labs(
+    title = "Histograma de Peso por Variedad",
+    x = "Peso",
+    y = "Frecuencia",
+    caption = "Histograma mostrando la distribución del peso para cada variedad."
+  ) +
+  theme(
+    axis.title.y = element_text(size = 12, face = "bold"),
+    axis.title.x = element_text(size = 12, face = "bold"),
+    plot.title = element_text(size = 14, face = "bold", hjust = 0.5),
+    plot.caption = element_text(size = 10, face = "italic", hjust = 0),
+    strip.text = element_text(size = 12, face = "bold")
+  )
+
+```
+
+```{r estadisticas, echo= TRUE}
+
+#Estadisticas
+
+estadisticas <- 
+  data %>%
+  group_by(variety) %>%
+  summarise(
+    Media = mean(weight, na.rm = TRUE),
+    Min = min(weight, na.rm = TRUE),
+    Max = max(weight, na.rm = TRUE),
+    Mediana = median(weight, na.rm = TRUE),
+    SD = sd(weight, na.rm = TRUE)
+  )
+
+print(estadisticas)
+
+
+```
+
+## Anova
+
+```{r anova}
+#Diferencias entre variedades usando anova
+
+anova_prueba <- aov(weight ~ variety, data = data)
+summary(anova_prueba)
+
+```
+
+## Tukey
+
+```{r tujey}
+tukey_prueba <- TukeyHSD(aov(weight ~ variety, data = data))
+print(tukey_prueba)
+
+# Graficar los resultados de Tukey HSD
+
+tukey_data <- as.data.frame(tukey_prueba$`variety`)
+tukey_data$comparison <- rownames(tukey_data)
+
+ggplot(tukey_data, aes(x = reorder(comparison, diff), y = diff, ymin = lwr, ymax = upr)) +
+  geom_pointrange(aes(color = `p adj` < 0.05), size = 1) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "gray") +
+  coord_flip() +
+  scale_color_manual(values = c("red", "black"), labels = c("Significativo", "No Significativo"))+
+  theme_light()+
+  labs(
+    title = "Comparaciones Múltiples con Tukey HSD",
+    x = "Comparación",
+    y = "Diferencia en las Medias",
+    color = "Significancia"
+  )
+
+```
+
+## Correlacion
+
+```{r grafica correlacion, echo= TRUE}
+ #por variedad
+  
+  ggplot(data, aes(x = caliber, y = weight)) +
+    geom_point(aes(color = variety), alpha = 0.6) +
+    geom_smooth(method = "lm", color = "blue", se = FALSE) +
+    facet_wrap(.~ variety) +
+    theme_light() +
+    labs(
+      title = "Relación entre Peso y Caliber por Variedad",
+      x = "Caliber",
+      y = "Peso",
+      caption = "Gráfico de dispersión mostrando la relación entre peso y caliber por variedad."
+    ) +
+    theme(
+      axis.title.y = element_text(size = 12, face = "bold"),
+      axis.title.x = element_text(size = 12, face = "bold"),
+      plot.title = element_text(size = 14, face = "bold", hjust = 0.5),
+      plot.caption = element_text(size = 10, face = "italic", hjust = 0)
+    )
+
+```
+
+```{r correlacion_2, echo= FALSE}
+
+data<- 
+  data %>% arrange(semana) %>%
+  mutate(sem_num = as.numeric(factor(semana, levels = unique(semana))))
+
+data_1 <- data %>%  select(-"correlativo")
+
+correlation_matrix <-  
+  data_1 %>%
+  group_by(variety) %>%
+  group_split() %>% 
+  map(~ .x %>%
+        select_if(is.numeric) %>%  # Selecciona solo las columnas numéricas
+        cor(use = "complete.obs"))
+
+varieties <- unique(data_1$variety)
+
+correlation_long_list <- 
+  map2(correlation_matrix, varieties, function(cor_matrix, var) {
+  as.data.frame(as.table(cor_matrix)) %>%
+    mutate(variety = var)
+})
+
+correlation_long <- bind_rows(correlation_long_list)
+
+#Regresion armas datos para eso
+
+set.seed(123)
+
+dummies <- dummyVars(weight ~ variety, data = data)
+data_dummies <- predict(dummies, newdata = data)
+data_dummies <- data.frame(data_dummies)
+data_final <- cbind(data[, c("caliber", "weight")], data_dummies)
+
+#Entrenamiento
+
+ctrl <- 
+  trainControl(method = "cv", 
+               number = 5, 
+               summaryFunction = defaultSummary, 
+               classProbs = FALSE)
+
+```
+
+```{r correlacion_3, echo= TRUE}
+
+ggplot(correlation_long, aes(x = Var1, y = Var2, fill = Freq)) +
+  geom_tile() +
+  facet_wrap(~ variety) +
+  scale_fill_gradient2(low = "blue", high = "red", mid = "white", midpoint = 0, limit = c(-1, 1), name = "Correlación") +
+  theme_minimal() +
+  labs(
+    title = "Mapa de Calor de Correlaciones por Variedad",
+    x = "Variables",
+    y = "Variables"
+  ) +
+  theme(
+    axis.title.x = element_text(size = 12, face = "bold"),
+    axis.title.y = element_text(size = 12, face = "bold"),
+    plot.title = element_text(size = 14, face = "bold", hjust = 0.5),
+    strip.text = element_text(size = 12, face = "bold")
+  )
+
+```
+
+## Modelos
+## Conclusiones
+
+La relación entre el peso y el calibre en el arándano es una consideración importante para los productores y comercializadores. Comprender esta relación puede ayudar en la selección de variedades y en la optimización de las prácticas de cultivo para mejorar la calidad del fruto.
+
+## Recomendaciones
+
+- **Optimización de Cultivo**: Ajustar las prácticas de cultivo para maximizar el tamaño y peso de los arándanos.
+- **Selección de Variedades**: Elegir variedades que se alineen con los objetivos de producción y comercialización.
+
+## Referencias
+
+- [Estudio sobre el crecimiento del arándano](enlace)
+- [Manual de cultivo de arándanos](enlace)
